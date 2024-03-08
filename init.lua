@@ -493,7 +493,8 @@ require('lazy').setup({
       'saghen/blink.cmp',
     },
     config = function()
-      -- Brief aside: **What is LSP?**
+      vim.lsp.set_log_level("trace")
+      -- Brief Aside: **What is LSP?**
       --
       -- LSP is an initialism you've probably heard, but might not understand what it is.
       --
@@ -683,7 +684,14 @@ require('lazy').setup({
         -- But for many setups, the LSP (`ts_ls`) will work just fine
         -- ts_ls = {},
         --
-
+        asm_lsp={},
+        clangd={},
+        csharp_ls ={},
+        fsautocomplete = {},
+        powershell_es = {},
+        yamlls={},
+        sqls ={},
+        jsonls={},
         lua_ls = {
           -- cmd = { ... },
           -- filetypes = { ... },
@@ -715,7 +723,8 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua', -- Used to format Lua code
+        'stylua', -- Used to format lua code
+        'fantomas'
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
