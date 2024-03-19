@@ -1,4 +1,5 @@
 --[[
+          filetypes = { 'ps1', 'psm1', 'psd1' },
 
 =====================================================================
 ==================== READ THIS BEFORE CONTINUING ====================
@@ -87,22 +88,37 @@ P.S. You can delete this when you're done too. It's your config now! :)
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
-vim.g.mapleader = ' '
-vim.g.maplocalleader = ' '
+vim.g.mapleader = ','
+vim.g.maplocalleader = ','
 
--- Set to true if you have a Nerd Font installed and selected in the terminal
-vim.g.have_nerd_font = false
+-- Set to true if you have a Nerd Font installed
+vim.g.have_nerd_font = true
 
 -- [[ Setting options ]]
 -- See `:help vim.o`
 -- NOTE: You can change these options as you wish!
 --  For more options, you can see `:help option-list`
 
+vim.cmd 'language en_GB.utf8'
+vim.opt.fileencoding = 'utf-8'
+vim.opt.encoding = 'utf-8'
+vim.opt.bomb = false
+
+local enablePwsh = false -- pwsh/powershell is too slow and is putting some format characters that are printed out, in those conditions I prefer cmd/batch
+
+if enablePwsh then
+  vim.cmd [[
+    let &shell = executable('pwsh') ? 'pwsh' : 'powershell'
+    let &shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$PSDefaultParameterValues[''Out-File:Encoding'']=''utf8'';'
+    let &shellredir = '2>&1 | %%{ "$_" } | Out-File %s; exit $LastExitCode'
+    let &shellpipe  = '2>&1 | %%{ "$_" } | Tee-Object %s; exit $LastExitCode'
+    set shellquote= shellxquote=
+  ]]
+end
+
 -- Make line numbers default
-vim.o.number = true
--- You can also add relative line numbers, to help with jumping.
---  Experiment for yourself to see if you like it!
--- vim.o.relativenumber = true
+vim.opt.number = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -176,6 +192,10 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
+-- Other useful keymaps
+vim.keymap.set('i', '<leader>.', '<esc>')
+vim.keymap.set('i', '<leader>;', '<esc>') -- when in AZERTY keyboard
+
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
 -- is not what someone will guess without a bit more experience.
@@ -185,10 +205,10 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
 -- TIP: Disable arrow keys in normal mode
--- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
--- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
--- vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
--- vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
+vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
+vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
+vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
+vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
@@ -234,6 +254,43 @@ end
 local rtp = vim.opt.rtp
 rtp:prepend(lazypath)
 
+vim.g['fsharp#show_signature_on_cursor_move'] = 0
+vim.g['fsharp#lsp_auto_setup'] = 0
+vim.g['fsharp#workspace_mode_peek_deep_level'] = 4
+vim.g['fsharp#exclude_project_directories'] = { 'paket-files' }
+
+vim.api.nvim_create_user_command('FSharpRefreshCodeLens', function()
+  vim.lsp.codelens.refresh()
+  print '[FSAC] Refreshing CodeLens'
+end, {
+  bang = true,
+})
+
+vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
+  pattern = '*.fs,*.fsx,*.fsi',
+  command = [[set filetype=fsharp]],
+})
+vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
+  pattern = '*.yaml,*.yml',
+  command = [[set filetype=yaml]],
+})
+
+-- local format = function(async)
+--   vim.lsp.buf.format {
+--     async = async,
+--     filter = function(client)
+--       return client.name == 'ionide'
+--     end,
+--   }
+-- end
+
+-- vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
+--   pattern = '*.fs,*.fsx,*.fsi',
+--   callback = function()
+--     format(false)
+--   end,
+-- })
+
 -- [[ Configure and install plugins ]]
 --
 --  To check the current status of your plugins, run
@@ -255,6 +312,12 @@ require('lazy').setup({
   --
   -- Use `opts = {}` to automatically pass options to a plugin's `setup()` function, forcing the plugin to be loaded.
   --
+  --  This is equivalent to:
+  --    require('Comment').setup({})
+
+  -- "gc" to comment visual regions/lines
+  { 'ionide/Ionide-vim', ft = 'fsharp', dependencies = { 'neovim/nvim-lspconfig' } },
+  { 'numToStr/Comment.nvim', opts = {} },
 
   -- Alternatively, use `config = function() ... end` for full control over the configuration.
   -- If you prefer to call `setup` explicitly, use:
@@ -493,7 +556,7 @@ require('lazy').setup({
       'saghen/blink.cmp',
     },
     config = function()
-      vim.lsp.set_log_level("trace")
+      vim.lsp.set_log_level 'trace'
       -- Brief Aside: **What is LSP?**
       --
       -- LSP is an initialism you've probably heard, but might not understand what it is.
@@ -523,7 +586,7 @@ require('lazy').setup({
       --    That is to say, every time a new file is opened that is associated with
       --    an lsp (for example, opening `main.rs` is associated with `rust_analyzer`) this
       --    function will be executed to configure the current buffer
-      vim.api.nvim_create_autocmd('LspAttach', {
+      local on_attach = vim.api.nvim_create_autocmd('LspAttach', {
         group = vim.api.nvim_create_augroup('kickstart-lsp-attach', { clear = true }),
         callback = function(event)
           -- NOTE: Remember that Lua is a real programming language, and as such it is possible
@@ -585,6 +648,10 @@ require('lazy').setup({
               return client.supports_method(method, { bufnr = bufnr })
             end
           end
+
+          -- vim.keymap.set('n', '<M-f>', function()
+          --   format(true)
+          -- end, { buffer = event.buf, desc = 'LSP: [F]ormat Buffer' })
 
           -- The following two autocommands are used to highlight references of the
           -- word under your cursor when your cursor rests there for a little while.
@@ -662,6 +729,16 @@ require('lazy').setup({
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
       local capabilities = require('blink.cmp').get_lsp_capabilities()
 
+      local function make_pwsh_es_cmd()
+        local temp_path = vim.fn.stdpath 'cache'
+        local bundle_path = '~/AppData/Local/nvim-data/mason/packages/powershell-editor-services'
+        local command_fmt =
+          [[& '%s/PowerShellEditorServices/Start-EditorServices.ps1' -BundledModulesPath '%s/PowerShellEditorServices' -LogPath '%s/powershell_es.log' -SessionDetailsPath '%s/powershell_es.session.json' -HostName nvim -HostProfileId '0' -HostVersion '1.0.0' -Stdio -LogLevel Diagnostic]]
+        local command = command_fmt:format(bundle_path, bundle_path, temp_path, temp_path)
+        return command
+      end
+
+      local powershell_es_cmd = make_pwsh_es_cmd()
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
@@ -684,14 +761,22 @@ require('lazy').setup({
         -- But for many setups, the LSP (`ts_ls`) will work just fine
         -- ts_ls = {},
         --
-        asm_lsp={},
-        clangd={},
-        csharp_ls ={},
-        fsautocomplete = {},
-        powershell_es = {},
-        yamlls={},
-        sqls ={},
-        jsonls={},
+        asm_lsp = {},
+        clangd = {},
+        -- csharp_ls = {},
+        powershell_es = {
+          cmd = { 'pwsh', '-NoProfile', '-NoLogo', '-NonInteractive', '-Command', powershell_es_cmd },
+          single_file_support = true,
+          init_options = {
+            enableProfileLoading = false,
+          },
+          settings = {
+            enableProfileLoading = false,
+          },
+        },
+        sqls = {},
+        jsonls = {},
+        yamlls = {},
         lua_ls = {
           -- cmd = { ... },
           -- filetypes = { ... },
@@ -714,17 +799,22 @@ require('lazy').setup({
       -- other tools, you can run
       --    :Mason
       --
-      -- You can press `g?` for help in this menu.
-      --
-      -- `mason` had to be setup earlier: to configure its options see the
-      -- `dependencies` table for `nvim-lspconfig` above.
-      --
+      --  You can press `g?` for help in this menu
+      require('mason').setup()
+
+      require('ionide').setup {
+        autostart = true,
+        single_file_support = true,
+        flags = {
+          debounce_text_changes = 150,
+        },
+      }
       -- You can add other tools here that you want Mason to install
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
+
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format lua code
-        'fantomas'
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -953,7 +1043,7 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'c_sharp'. 'zig' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -964,6 +1054,27 @@ require('lazy').setup({
         additional_vim_regex_highlighting = { 'ruby' },
       },
       indent = { enable = true, disable = { 'ruby' } },
+      config = function()
+      -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
+      
+      -- require('nvim-treesitter.install').compilers = { 'zig' }
+
+      local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
+      parser_config.fsharp = {
+        install_info = {
+          url = '~/AppData/Local/nvim-data/tree-sitter-fsharp',
+          branch = 'main',
+          files = { 'src/scanner.cc', 'src/parser.c' },
+        },
+        filetype = 'fsharp',
+      }
+      -- There are additional nvim-treesitter modules that you can use to interact
+      -- with nvim-treesitter. You should go explore a few and see what interests you:
+      --
+      --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
+      --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
+      --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+    end,
     },
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
@@ -1020,6 +1131,5 @@ require('lazy').setup({
     },
   },
 })
-
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
