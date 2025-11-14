@@ -88,8 +88,8 @@ P.S. You can delete this when you're done too. It's your config now! :)
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
-vim.g.mapleader = ','
-vim.g.maplocalleader = ','
+vim.g.mapleader = '\\'
+vim.g.maplocalleader = '\\'
 
 -- Set to true if you have a Nerd Font installed
 vim.g.have_nerd_font = true
@@ -99,14 +99,17 @@ vim.g.have_nerd_font = true
 -- NOTE: You can change these options as you wish!
 --  For more options, you can see `:help option-list`
 
-vim.cmd 'language en_GB.utf8'
+-- Get OS
+local isMac = jit.os == 'OSX'
+
+vim.cmd 'language en_US.UTF-8'
 vim.opt.fileencoding = 'utf-8'
 vim.opt.encoding = 'utf-8'
 vim.opt.bomb = false
 
 local enablePwsh = false -- pwsh/powershell is too slow and is putting some format characters that are printed out, in those conditions I prefer cmd/batch
 
-if enablePwsh then
+if not isMac and enablePwsh then
   vim.cmd [[
     let &shell = executable('pwsh') ? 'pwsh' : 'powershell'
     let &shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$PSDefaultParameterValues[''Out-File:Encoding'']=''utf8'';'
@@ -317,6 +320,7 @@ require('lazy').setup({
 
   -- "gc" to comment visual regions/lines
   { 'ionide/Ionide-vim', ft = 'fsharp', dependencies = { 'neovim/nvim-lspconfig' } },
+  { 'qvalentin/helm-ls.nvim', ft = 'helm' },
   { 'numToStr/Comment.nvim', opts = {} },
 
   -- Alternatively, use `config = function() ... end` for full control over the configuration.
@@ -738,7 +742,7 @@ require('lazy').setup({
         return command
       end
 
-      local powershell_es_cmd = make_pwsh_es_cmd()
+      local powershell_es_cmd = not isMac and make_pwsh_es_cmd()
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
@@ -749,8 +753,7 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
-        -- gopls = {},
+        gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
@@ -763,15 +766,30 @@ require('lazy').setup({
         --
         asm_lsp = {},
         clangd = {},
-        -- csharp_ls = {},
-        powershell_es = {
-          cmd = { 'pwsh', '-NoProfile', '-NoLogo', '-NonInteractive', '-Command', powershell_es_cmd },
-          single_file_support = true,
-          init_options = {
-            enableProfileLoading = false,
-          },
+        csharp_ls = {},
+        -- powershell_es = {
+        --   cmd = { 'pwsh', '-NoProfile', '-NoLogo', '-NonInteractive', '-Command', powershell_es_cmd },
+        --   single_file_support = true,
+        --   init_options = {
+        --     enableProfileLoading = false,
+        --   },
+        --   settings = {
+        --     enableProfileLoading = false,
+        --   },
+        -- },
+        helm_ls = {
           settings = {
-            enableProfileLoading = false,
+            ['helm-ls'] = {
+              yamlls = {
+                path = 'yaml-language-server',
+              },
+            },
+          },
+        },
+        ruby_lsp = {
+          init_options = {
+            formatter = 'standard',
+            linters = { 'standard' },
           },
         },
         sqls = {},
