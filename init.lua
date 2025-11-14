@@ -88,8 +88,8 @@ P.S. You can delete this when you're done too. It's your config now! :)
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
-vim.g.mapleader = ','
-vim.g.maplocalleader = ','
+vim.g.mapleader = '\\'
+vim.g.maplocalleader = '\\'
 
 -- Set to true if you have a Nerd Font installed
 vim.g.have_nerd_font = true
@@ -99,14 +99,17 @@ vim.g.have_nerd_font = true
 -- NOTE: You can change these options as you wish!
 --  For more options, you can see `:help option-list`
 
-vim.cmd 'language en_GB.utf8'
+-- Get OS
+local isMac = jit.os == 'OSX'
+
+vim.cmd 'language en_US.UTF-8'
 vim.opt.fileencoding = 'utf-8'
 vim.opt.encoding = 'utf-8'
 vim.opt.bomb = false
 
 local enablePwsh = false -- pwsh/powershell is too slow and is putting some format characters that are printed out, in those conditions I prefer cmd/batch
 
-if enablePwsh then
+if not isMac and enablePwsh then
   vim.cmd [[
     let &shell = executable('pwsh') ? 'pwsh' : 'powershell'
     let &shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$PSDefaultParameterValues[''Out-File:Encoding'']=''utf8'';'
@@ -317,6 +320,7 @@ require('lazy').setup({
 
   -- "gc" to comment visual regions/lines
   { 'ionide/Ionide-vim', ft = 'fsharp', dependencies = { 'neovim/nvim-lspconfig' } },
+  { 'qvalentin/helm-ls.nvim', ft = 'helm' },
   { 'numToStr/Comment.nvim', opts = {} },
 
   -- Alternatively, use `config = function() ... end` for full control over the configuration.
@@ -738,7 +742,7 @@ require('lazy').setup({
         return command
       end
 
-      local powershell_es_cmd = make_pwsh_es_cmd()
+      local powershell_es_cmd = not isMac and make_pwsh_es_cmd()
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
@@ -749,8 +753,7 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
-        -- gopls = {},
+        gopls = {},
         -- pyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
@@ -763,15 +766,30 @@ require('lazy').setup({
         --
         asm_lsp = {},
         clangd = {},
-        -- csharp_ls = {},
-        powershell_es = {
-          cmd = { 'pwsh', '-NoProfile', '-NoLogo', '-NonInteractive', '-Command', powershell_es_cmd },
-          single_file_support = true,
-          init_options = {
-            enableProfileLoading = false,
-          },
+        csharp_ls = {},
+        -- powershell_es = {
+        --   cmd = { 'pwsh', '-NoProfile', '-NoLogo', '-NonInteractive', '-Command', powershell_es_cmd },
+        --   single_file_support = true,
+        --   init_options = {
+        --     enableProfileLoading = false,
+        --   },
+        --   settings = {
+        --     enableProfileLoading = false,
+        --   },
+        -- },
+        helm_ls = {
           settings = {
-            enableProfileLoading = false,
+            ['helm-ls'] = {
+              yamlls = {
+                path = 'yaml-language-server',
+              },
+            },
+          },
+        },
+        ruby_lsp = {
+          init_options = {
+            formatter = 'standard',
+            linters = { 'standard' },
           },
         },
         sqls = {},
@@ -1043,7 +1061,7 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'c_sharp'. 'zig' },
+      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'c_sharp', 'zig' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -1055,26 +1073,26 @@ require('lazy').setup({
       },
       indent = { enable = true, disable = { 'ruby' } },
       config = function()
-      -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
-      
-      -- require('nvim-treesitter.install').compilers = { 'zig' }
+        -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
 
-      local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
-      parser_config.fsharp = {
-        install_info = {
-          url = '~/AppData/Local/nvim-data/tree-sitter-fsharp',
-          branch = 'main',
-          files = { 'src/scanner.cc', 'src/parser.c' },
-        },
-        filetype = 'fsharp',
-      }
-      -- There are additional nvim-treesitter modules that you can use to interact
-      -- with nvim-treesitter. You should go explore a few and see what interests you:
-      --
-      --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
-      --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
-      --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
-    end,
+        -- require('nvim-treesitter.install').compilers = { 'zig' }
+
+        local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
+        parser_config.fsharp = {
+          install_info = {
+            url = '~/AppData/Local/nvim-data/tree-sitter-fsharp',
+            branch = 'main',
+            files = { 'src/scanner.cc', 'src/parser.c' },
+          },
+          filetype = 'fsharp',
+        }
+        -- There are additional nvim-treesitter modules that you can use to interact
+        -- with nvim-treesitter. You should go explore a few and see what interests you:
+        --
+        --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
+        --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
+        --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+      end,
     },
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
