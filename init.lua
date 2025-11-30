@@ -1,6 +1,4 @@
 --[[
-          filetypes = { 'ps1', 'psm1', 'psd1' },
-
 =====================================================================
 ==================== READ THIS BEFORE CONTINUING ====================
 =====================================================================
@@ -160,6 +158,12 @@ vim.o.timeoutlen = 300
 vim.o.splitright = true
 vim.o.splitbelow = true
 
+-- Tabs
+vim.opt.expandtab = true -- convert tabs to spaces
+vim.opt.tabstop = 2 -- number of spaces a <Tab> counts for
+vim.opt.shiftwidth = 2 -- number of spaces for indentation
+vim.opt.softtabstop = 2 -- number of spaces when pressing <Tab>
+
 -- Sets how neovim will display certain whitespace characters in the editor.
 --  See `:help 'list'`
 --  and `:help 'listchars'`
@@ -197,6 +201,7 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 
 -- Other useful keymaps
 vim.keymap.set('i', '<leader>.', '<esc>')
+vim.keymap.set('i', '<space><space>', '<esc>')
 vim.keymap.set('i', '<leader>;', '<esc>') -- when in AZERTY keyboard
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
@@ -307,7 +312,6 @@ vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
-  'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -315,10 +319,7 @@ require('lazy').setup({
   --
   -- Use `opts = {}` to automatically pass options to a plugin's `setup()` function, forcing the plugin to be loaded.
   --
-  --  This is equivalent to:
-  --    require('Comment').setup({})
 
-  -- "gc" to comment visual regions/lines
   { 'ionide/Ionide-vim', ft = 'fsharp', dependencies = { 'neovim/nvim-lspconfig' } },
   { 'qvalentin/helm-ls.nvim', ft = 'helm' },
   { 'numToStr/Comment.nvim', opts = {} },
@@ -560,7 +561,7 @@ require('lazy').setup({
       'saghen/blink.cmp',
     },
     config = function()
-      vim.lsp.set_log_level 'trace'
+      vim.lsp.set_log_level 'error'
       -- Brief Aside: **What is LSP?**
       --
       -- LSP is an initialism you've probably heard, but might not understand what it is.
@@ -1101,6 +1102,20 @@ require('lazy').setup({
     --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
   },
+  {
+    -- Edit your filesystem like a normal Neovim buffer
+    'stevearc/oil.nvim',
+    ---@module 'oil'
+    ---@type oil.SetupOpts
+    opts = {
+      default_file_explorer = true,
+    },
+    -- Optional dependencies
+    dependencies = { { 'echasnovski/mini.icons', opts = {} } },
+    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if you prefer nvim-web-devicons
+    -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
+    lazy = false,
+  },
 
   -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
@@ -1111,7 +1126,7 @@ require('lazy').setup({
   --  Here are some example plugins that I've included in the Kickstart repository.
   --  Uncomment any of the lines below to enable them (you will need to restart nvim).
   --
-  -- require 'kickstart.plugins.debug',
+  require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',

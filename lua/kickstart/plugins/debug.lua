@@ -34,28 +34,28 @@ return {
       desc = 'Debug: Start/Continue',
     },
     {
-      '<F1>',
-      function()
-        require('dap').step_into()
-      end,
-      desc = 'Debug: Step Into',
-    },
-    {
-      '<F2>',
+      '<F6>',
       function()
         require('dap').step_over()
       end,
       desc = 'Debug: Step Over',
     },
     {
-      '<F3>',
+      '<F7>',
+      function()
+        require('dap').step_into()
+      end,
+      desc = 'Debug: Step Into',
+    },
+    {
+      '<F8>',
       function()
         require('dap').step_out()
       end,
       desc = 'Debug: Step Out',
     },
     {
-      '<leader>b',
+      '<F9>',
       function()
         require('dap').toggle_breakpoint()
       end,
@@ -70,7 +70,7 @@ return {
     },
     -- Toggle to see last session result. Without this, you can't see session output in case of unhandled exception.
     {
-      '<F7>',
+      '<F10>',
       function()
         require('dapui').toggle()
       end,
@@ -95,6 +95,7 @@ return {
       ensure_installed = {
         -- Update this to ensure that you have the debuggers for the langs you want
         'delve',
+        'netcoredbg',
       },
     }
 
@@ -131,11 +132,49 @@ return {
     --   local hl = (type == 'Stopped') and 'DapStop' or 'DapBreak'
     --   vim.fn.sign_define(tp, { text = icon, texthl = hl, numhl = hl })
     -- end
+    --
 
     dap.listeners.after.event_initialized['dapui_config'] = dapui.open
     dap.listeners.before.event_terminated['dapui_config'] = dapui.close
     dap.listeners.before.event_exited['dapui_config'] = dapui.close
 
+    local netcore_adapter = {
+      type = 'executable',
+      command = '/usr/local/netcoredbg',
+      args = { '--interpreter=vscode' },
+    }
+    dap.adapters.coreclr = netcore_adapter
+    dap.adapters.netcoredbg = netcore_adapter
+
+    dap.configurations.cs = {
+      {
+        type = 'coreclr',
+        name = 'Launch',
+        request = 'launch',
+        -- program = function()
+        --   return vim.fn.input('Path to dll: ', vim.fn.getcwd() .. '/bin/Debug/', 'file')
+        -- end,
+        program = vim.fn.getcwd() .. '/bin/Debug/net10.0/hello-world.dll',
+        cwd = vim.fn.getcwd,
+        env = {
+          DOTNET_ENVIRONMENT = 'Development',
+        },
+        justMyCode = false,
+      },
+      {
+        type = 'coreclr',
+        name = 'Attach to process',
+        request = 'attach',
+        justMyCode = false,
+        processId = function()
+          local input = vim.fn.input 'Enter process ID: '
+          return tonumber(input)
+        end,
+      },
+    }
+
+    -- dotnet
+    -- require('kickstart.plugins.dap-cs').setup()
     -- Install golang specific config
     require('dap-go').setup {
       delve = {
