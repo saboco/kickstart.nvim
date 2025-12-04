@@ -227,13 +227,51 @@ vim.keymap.set('n', '_', '0')
 -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
 -- or just use <C-\><C-n> to exit terminal mode
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
-vim.keymap.set('n', '<leader>T', '<cmd>split | terminal<CR>i', { desc = 'Open a terminal in a horizontal split' })
-vim.keymap.set('n', '<leader>vt', '<cmd>vsplit | terminal<CR>i', { desc = 'Open a terminal in a horizontal split' })
+-- vim.keymap.set('n', '<leader>T', '<cmd>split | terminal<CR>i', { desc = 'Open a terminal in a horizontal split' })
+vim.keymap.set('n', '<leader>T', '<cmd>Term h 10<CR>', { desc = 'Open a terminal in a horizontal split' })
+vim.keymap.set('n', '<leader>vt', '<cmd>Term v 80<CR>', { desc = 'Open a terminal in a horizontal split' })
 -- Easy window navigation from terminal
 vim.keymap.set('t', '<C-h>', '<C-\\><C-n><C-w>h')
 vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j')
 vim.keymap.set('t', '<C-k>', '<C-\\><C-n><C-w>k')
 vim.keymap.set('t', '<C-l>', '<C-\\><C-n><C-w>l')
+-- Open terminal with a lighter theme
+vim.api.nvim_create_user_command('Term', function(opts)
+  local args = vim.split(opts.args, ' ')
+  local split_type = args[1] or 'h'
+  local size = tonumber(args[2])
+
+  if split_type == 'v' or split_type == 'vertical' then
+    if size then
+      vim.cmd('vsplit | vertical resize ' .. size)
+    else
+      vim.cmd 'vsplit'
+    end
+  else -- horizontal
+    if size then
+      vim.cmd('split | resize ' .. size)
+    else
+      vim.cmd 'split'
+    end
+  end
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_win_set_buf(0, buf)
+
+  vim.fn.jobstart(vim.o.shell, {
+    term = true,
+    env = {
+      NVIM_POSH_THEME = 'bubbles',
+    },
+  })
+  vim.cmd 'startinsert'
+end, {
+  nargs = '*', -- multiple arguments
+  complete = function()
+    return { 'h', 'horizontal', 'v', 'vertical' }
+  end,
+  desc = 'Open terminal: Term [h|v] [size]',
+})
 
 -- TIP: Disable arrow keys in normal mode
 vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
@@ -619,7 +657,7 @@ require('lazy').setup({
       --    That is to say, every time a new file is opened that is associated with
       --    an lsp (for example, opening `main.rs` is associated with `rust_analyzer`) this
       --    function will be executed to configure the current buffer
-      local on_attach = vim.api.nvim_create_autocmd('LspAttach', {
+      local _ = vim.api.nvim_create_autocmd('LspAttach', {
         group = vim.api.nvim_create_augroup('kickstart-lsp-attach', { clear = true }),
         callback = function(event)
           -- NOTE: Remember that Lua is a real programming language, and as such it is possible
@@ -762,14 +800,14 @@ require('lazy').setup({
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
       local capabilities = require('blink.cmp').get_lsp_capabilities()
 
-      local function make_pwsh_es_cmd()
-        local temp_path = vim.fn.stdpath 'cache'
-        local bundle_path = '~/AppData/Local/nvim-data/mason/packages/powershell-editor-services'
-        local command_fmt =
-          [[& '%s/PowerShellEditorServices/Start-EditorServices.ps1' -BundledModulesPath '%s/PowerShellEditorServices' -LogPath '%s/powershell_es.log' -SessionDetailsPath '%s/powershell_es.session.json' -HostName nvim -HostProfileId '0' -HostVersion '1.0.0' -Stdio -LogLevel Diagnostic]]
-        local command = command_fmt:format(bundle_path, bundle_path, temp_path, temp_path)
-        return command
-      end
+      -- local function make_pwsh_es_cmd()
+      --   local temp_path = vim.fn.stdpath 'cache'
+      --   local bundle_path = '~/AppData/Local/nvim-data/mason/packages/powershell-editor-services'
+      --   local command_fmt =
+      --     [[& '%s/PowerShellEditorServices/Start-EditorServices.ps1' -BundledModulesPath '%s/PowerShellEditorServices' -LogPath '%s/powershell_es.log' -SessionDetailsPath '%s/powershell_es.session.json' -HostName nvim -HostProfileId '0' -HostVersion '1.0.0' -Stdio -LogLevel Diagnostic]]
+      --   local command = command_fmt:format(bundle_path, bundle_path, temp_path, temp_path)
+      --   return command
+      -- end
 
       vim.lsp.handlers['window/showMessageRequest'] = function(err, result, ctx, config)
         if result and result.message and result.message:match 'Migrations are pending' then
@@ -789,7 +827,7 @@ require('lazy').setup({
         return vim.lsp.handlers['window/showMessageRequest'](err, result, ctx, config)
       end
 
-      local powershell_es_cmd = not isMac and make_pwsh_es_cmd()
+      -- local powershell_es_cmd = not isMac and make_pwsh_es_cmd()
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
@@ -842,7 +880,7 @@ require('lazy').setup({
             },
             formatter = 'standard',
             linters = { 'standard' },
-            on_attach = function(client, bufnr)
+            on_attach = function(client, _)
               -- Disable command execution to prevent auto-running migrations
               client.server_capabilities.executeCommandProvider = false
             end,
