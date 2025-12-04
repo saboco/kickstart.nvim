@@ -196,6 +196,9 @@ vim.o.confirm = true
 --  See `:help hlsearch`
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
+vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
+vim.keymap.set('n', '<leader>W', [[:%s/\s\+$//<cr>:let @/=''<CR>]], { desc = 'Trim whitespaces at the end of lines' })
+
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
@@ -203,6 +206,19 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 vim.keymap.set('i', '<leader>.', '<esc>')
 vim.keymap.set('i', '<space><space>', '<esc>')
 vim.keymap.set('i', '<leader>;', '<esc>') -- when in AZERTY keyboard
+vim.keymap.set('v', '<space><space>', '<esc>')
+
+-- vimrc editing
+vim.keymap.set('n', '<leader>vr', ':vs $MYVIMRC<CR>', { desc = 'Open vimrc in a vertical split' })
+
+-- navigating in the file
+vim.keymap.set('n', 'n', 'nzzzv')
+vim.keymap.set('n', 'N', 'Nzzzv')
+vim.keymap.set('n', '<space>', 'zz')
+vim.keymap.set('n', '<C-d>', '<C-d>zz', { desc = 'Go a page down and recenters the view' })
+vim.keymap.set('n', '<C-u>', '<C-u>zz', { desc = 'Go a page up and recenters the view' })
+vim.keymap.set('n', '0', '_')
+vim.keymap.set('n', '_', '0')
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -211,6 +227,13 @@ vim.keymap.set('i', '<leader>;', '<esc>') -- when in AZERTY keyboard
 -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
 -- or just use <C-\><C-n> to exit terminal mode
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
+vim.keymap.set('n', '<leader>T', '<cmd>split | terminal<CR>i', { desc = 'Open a terminal in a horizontal split' })
+vim.keymap.set('n', '<leader>vt', '<cmd>vsplit | terminal<CR>i', { desc = 'Open a terminal in a horizontal split' })
+-- Easy window navigation from terminal
+vim.keymap.set('t', '<C-h>', '<C-\\><C-n><C-w>h')
+vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j')
+vim.keymap.set('t', '<C-k>', '<C-\\><C-n><C-w>k')
+vim.keymap.set('t', '<C-l>', '<C-\\><C-n><C-w>l')
 
 -- TIP: Disable arrow keys in normal mode
 vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
@@ -228,10 +251,15 @@ vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower win
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
 -- NOTE: Some terminals have colliding keymaps or are not able to send distinct keycodes
--- vim.keymap.set("n", "<C-S-h>", "<C-w>H", { desc = "Move window to the left" })
--- vim.keymap.set("n", "<C-S-l>", "<C-w>L", { desc = "Move window to the right" })
--- vim.keymap.set("n", "<C-S-j>", "<C-w>J", { desc = "Move window to the lower" })
--- vim.keymap.set("n", "<C-S-k>", "<C-w>K", { desc = "Move window to the upper" })
+vim.keymap.set('n', '<C-S-h>', '<C-w>H', { desc = 'Move window to the left' })
+vim.keymap.set('n', '<C-S-l>', '<C-w>L', { desc = 'Move window to the right' })
+vim.keymap.set('n', '<C-S-j>', '<C-w>J', { desc = 'Move window to the lower' })
+vim.keymap.set('n', '<C-S-k>', '<C-w>K', { desc = 'Move window to the upper' })
+
+vim.keymap.set('n', '<C-S-]>', '<C-w>+')
+vim.keymap.set('n', '<C-S-[>', '<C-w>-')
+vim.keymap.set('n', '<C-S-;>', '<C-w>>')
+vim.keymap.set('n', '<C-S-,>', '<C-w><')
 
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
@@ -743,6 +771,24 @@ require('lazy').setup({
         return command
       end
 
+      vim.lsp.handlers['window/showMessageRequest'] = function(err, result, ctx, config)
+        if result and result.message and result.message:match 'Migrations are pending' then
+          -- For migration prompts, always return "Cancel" action
+          if result.actions then
+            for _, action in ipairs(result.actions) do
+              if action.title and action.title:match 'Cancel' then
+                return action
+              end
+            end
+            -- If no Cancel found, return the last action (usually Cancel)
+            return result.actions[#result.actions]
+          end
+          return { title = 'Cancel' }
+        end
+        -- Pass through other message requests normally
+        return vim.lsp.handlers['window/showMessageRequest'](err, result, ctx, config)
+      end
+
       local powershell_es_cmd = not isMac and make_pwsh_es_cmd()
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
@@ -789,8 +835,17 @@ require('lazy').setup({
         },
         ruby_lsp = {
           init_options = {
+            addonSettings = {
+              ['Ruby LSP Rails'] = {
+                enablePendingMigrationsPrompt = false,
+              },
+            },
             formatter = 'standard',
             linters = { 'standard' },
+            on_attach = function(client, bufnr)
+              -- Disable command execution to prevent auto-running migrations
+              client.server_capabilities.executeCommandProvider = false
+            end,
           },
         },
         sqls = {},
@@ -1112,7 +1167,7 @@ require('lazy').setup({
     },
     -- Optional dependencies
     dependencies = { { 'echasnovski/mini.icons', opts = {} } },
-    -- dependencies = { "nvim-tree/nvim-web-devicons" }, -- use if you prefer nvim-web-devicons
+    -- dependencies = { 'nvim-tree/nvim-web-devicons' }, -- use if you prefer nvim-web-devicons
     -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
     lazy = false,
   },

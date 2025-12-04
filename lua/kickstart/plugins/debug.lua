@@ -23,6 +23,7 @@ return {
 
     -- Add your own debuggers here
     'leoluz/nvim-dap-go',
+    'suketa/nvim-dap-ruby',
   },
   keys = {
     -- Basic debugging keymaps, feel free to change to your liking!
@@ -96,6 +97,7 @@ return {
         -- Update this to ensure that you have the debuggers for the langs you want
         'delve',
         'netcoredbg',
+        'rdbg',
       },
     }
 
@@ -122,22 +124,24 @@ return {
     }
 
     -- Change breakpoint icons
-    -- vim.api.nvim_set_hl(0, 'DapBreak', { fg = '#e51400' })
-    -- vim.api.nvim_set_hl(0, 'DapStop', { fg = '#ffcc00' })
-    -- local breakpoint_icons = vim.g.have_nerd_font
-    --     and { Breakpoint = '', BreakpointCondition = '', BreakpointRejected = '', LogPoint = '', Stopped = '' }
-    --   or { Breakpoint = '●', BreakpointCondition = '⊜', BreakpointRejected = '⊘', LogPoint = '◆', Stopped = '⭔' }
-    -- for type, icon in pairs(breakpoint_icons) do
-    --   local tp = 'Dap' .. type
-    --   local hl = (type == 'Stopped') and 'DapStop' or 'DapBreak'
-    --   vim.fn.sign_define(tp, { text = icon, texthl = hl, numhl = hl })
-    -- end
-    --
+    vim.api.nvim_set_hl(0, 'DapBreak', { fg = '#e51400' })
+    vim.api.nvim_set_hl(0, 'DapStop', { fg = '#ffcc00' })
+
+    local breakpoint_icons = vim.g.have_nerd_font
+        and { Breakpoint = '', BreakpointCondition = '', BreakpointRejected = '', LogPoint = '', Stopped = '' }
+      or { Breakpoint = '●', BreakpointCondition = '⊜', BreakpointRejected = '⊘', LogPoint = '◆', Stopped = '⭔' }
+    for type, icon in pairs(breakpoint_icons) do
+      local tp = 'Dap' .. type
+      local hl = (type == 'Stopped') and 'DapStop' or 'DapBreak'
+      vim.fn.sign_define(tp, { text = icon, texthl = hl, numhl = hl })
+    end
 
     dap.listeners.after.event_initialized['dapui_config'] = dapui.open
     dap.listeners.before.event_terminated['dapui_config'] = dapui.close
     dap.listeners.before.event_exited['dapui_config'] = dapui.close
 
+    -- dotnet
+    -- require('kickstart.plugins.dap-cs').setup()
     local netcore_adapter = {
       type = 'executable',
       command = '/usr/local/netcoredbg',
@@ -151,10 +155,9 @@ return {
         type = 'coreclr',
         name = 'Launch',
         request = 'launch',
-        -- program = function()
-        --   return vim.fn.input('Path to dll: ', vim.fn.getcwd() .. '/bin/Debug/', 'file')
-        -- end,
-        program = vim.fn.getcwd() .. '/bin/Debug/net10.0/hello-world.dll',
+        program = function()
+          return vim.fn.input('Path to dll: ', vim.fn.getcwd() .. '/bin/Debug/', 'file')
+        end,
         cwd = vim.fn.getcwd,
         env = {
           DOTNET_ENVIRONMENT = 'Development',
@@ -173,8 +176,39 @@ return {
       },
     }
 
-    -- dotnet
-    -- require('kickstart.plugins.dap-cs').setup()
+    -- Ruby
+    require('dap-ruby').setup()
+    -- dap.adapters.ruby = function(callback, config)
+    --   callback {
+    --     type = 'server',
+    --     host = '127.0.0.1',
+    --     port = '${port}',
+    --     executable = {
+    --       command = 'bundle',
+    --       args = { 'exec', 'rdbg', '-n', '--open', '--port', '${port}', '-c', '--', 'bundle', 'exec', config.command, config.script },
+    --     },
+    --   }
+    -- end
+    --
+    -- dap.configurations.ruby = {
+    --   {
+    --     type = 'ruby',
+    --     name = 'debug current file',
+    --     request = 'attach',
+    --     localfs = true,
+    --     command = 'ruby',
+    --     script = '${file}',
+    --   },
+    --   {
+    --     type = 'ruby',
+    --     name = 'run current spec file',
+    --     request = 'attach',
+    --     localfs = true,
+    --     command = 'rspec',
+    --     script = '${file}',
+    --   },
+    -- }
+
     -- Install golang specific config
     require('dap-go').setup {
       delve = {
