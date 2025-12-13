@@ -104,6 +104,8 @@ vim.cmd 'language en_US.UTF-8'
 vim.opt.fileencoding = 'utf-8'
 vim.opt.encoding = 'utf-8'
 vim.opt.bomb = false
+vim.opt.grepprg = 'rg --vimgrep --pcre2'
+vim.opt.grepformat = '%f:%l:%c:%m'
 
 local enablePwsh = false -- pwsh/powershell is too slow and is putting some format characters that are printed out, in those conditions I prefer cmd/batch
 
@@ -143,7 +145,7 @@ vim.o.undofile = true
 
 -- Case-insensitive searching UNLESS \C or one or more capital letters in the search term
 vim.o.ignorecase = true
-vim.o.smartcase = true
+-- vim.o.smartcase = true
 
 -- Keep signcolumn on by default
 vim.o.signcolumn = 'yes'
@@ -202,6 +204,46 @@ vim.keymap.set('n', '<leader>W', [[:%s/\s\+$//<cr>:let @/=''<CR>]], { desc = 'Tr
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
+vim.keymap.set('n', '<leader>ca', function()
+  vim.fn.setqflist({ {
+    filename = vim.fn.expand '%',
+    lnum = vim.fn.line '.',
+    text = vim.fn.getline '.',
+  } }, 'a')
+end, { desc = 'Add current line to Quickfix list' })
+
+vim.keymap.set('n', '<leader>cd', function()
+  if vim.bo.filetype == 'qf' then
+    local qflist = vim.fn.getqflist()
+    local idx = vim.fn.line '.'
+    table.remove(qflist, idx)
+    vim.fn.setqflist(qflist, 'r')
+  else
+    local qflist = vim.fn.getqflist()
+    local current_file = vim.fn.expand '%'
+    local current_line = vim.fn.line '.'
+
+    local filtered = vim.tbl_filter(function(item)
+      local item_file = vim.fn.bufname(item.bufnr)
+      return not (item_file == current_file and item.lnum == current_line)
+    end, qflist)
+
+    vim.fn.setqflist(filtered, 'r')
+  end
+  -- Reopen quickfix to refresh
+  vim.cmd 'cclose | botright copen'
+end, { desc = 'Remove current line from quickfix' })
+
+vim.api.nvim_create_user_command('Cfopen', function(opts)
+  if opts.fargs[1] then
+    vim.cmd(string.format([[set errorformat=%%f\|%%l\|\ %%m | botright cfile %s ]], opts.fargs[1]))
+  end
+  vim.cmd 'botright copen'
+end, {
+  nargs = '?',
+  desc = 'Open quickfix list: Cfopen [file]',
+})
+
 -- Other useful keymaps
 vim.keymap.set('i', '<leader>.', '<esc>')
 vim.keymap.set('i', '<space><space>', '<esc>')
@@ -229,7 +271,7 @@ vim.keymap.set('n', '_', '0')
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 -- vim.keymap.set('n', '<leader>T', '<cmd>split | terminal<CR>i', { desc = 'Open a terminal in a horizontal split' })
 vim.keymap.set('n', '<leader>T', '<cmd>Term h 10<CR>', { desc = 'Open a terminal in a horizontal split' })
-vim.keymap.set('n', '<leader>vt', '<cmd>Term v 80<CR>', { desc = 'Open a terminal in a horizontal split' })
+vim.keymap.set('n', '<leader>vt', '<cmd>Term v 80<CR>', { desc = 'Open a terminal in a vertical split' })
 -- Easy window navigation from terminal
 vim.keymap.set('t', '<C-h>', '<C-\\><C-n><C-w>h')
 vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j')
@@ -261,16 +303,211 @@ vim.api.nvim_create_user_command('Term', function(opts)
   vim.fn.jobstart(vim.o.shell, {
     term = true,
     env = {
-      NVIM_POSH_THEME = 'bubbles',
+      NVIM_POSH_THEME = 'true',
     },
   })
-  vim.cmd 'startinsert'
+  -- vim.cmd 'startinsert'
 end, {
   nargs = '*', -- multiple arguments
   complete = function()
     return { 'h', 'horizontal', 'v', 'vertical' }
   end,
   desc = 'Open terminal: Term [h|v] [size]',
+})
+
+vim.keymap.set('n', '<leader>sb', '<cmd>Scratch<CR>', { desc = 'Open a scratch buffer' })
+
+vim.api.nvim_create_user_command('Scratch', function()
+  -- Create a new scratch buffer (unlisted)
+  local scratch_buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_set_current_buf(scratch_buf)
+  vim.bo[scratch_buf].buftype = 'nofile'
+  vim.bo[scratch_buf].bufhidden = 'hide'
+  vim.bo[scratch_buf].swapfile = false
+  vim.bo[scratch_buf].buflisted = false
+
+  -- local print_args = function(args)
+  --   print '=== All args ==='
+  --   local info = {}
+  --   for key, value in pairs(args) do
+  --     table.insert(info, key .. ' = ' .. vim.inspect(value))
+  --   end
+  --
+  --   -- Write to file
+  --   vim.fn.writefile(info, '/tmp/autocmd_args.log', 'a')
+  --   vim.fn.writefile({ '---------' }, '/tmp/autocmd_args.log', 'a')
+  -- end
+
+  -- local autocmds = {
+  --   'BufWinLeave',
+  --   'BufWipeout',
+  --   'BufUnload',
+  --   'BufLeave',
+  --   'BufHidden',
+  --   'BufDelete',
+  --   'QuitPre',
+  --   'WinClosed',
+  --   'WinLeave',
+  -- }
+
+  -- for _, event in ipairs(autocmds) do
+  --   vim.api.nvim_create_autocmd(event, {
+  --     buffer = scratch_buf,
+  --     once = true,
+  --     callback = print_args,
+  --   })
+  -- end
+
+  -- -- Create autocmd to handle when leaving the scratch buffer
+  -- vim.api.nvim_create_autocmd('BufWinLeave', {
+  --   buffer = scratch_buf,
+  --   once = true,
+  --   callback = print_args,
+  -- })
+end, {
+  desc = 'Open a scratch buffer',
+})
+
+local get_files_or_default = function(file_pattern)
+  local get_current_file = function()
+    local file = vim.fn.expand '%:p'
+    return { file }
+  end
+  if file_pattern then
+    local files = vim.fn.glob(file_pattern, false, true)
+    if #files == 0 then
+      return get_current_file()
+    end
+    return files
+  else
+    return get_current_file()
+  end
+end
+
+local collect_lines = function(lines)
+  local processed_lines = {}
+  for _, line in ipairs(lines) do
+    if type(line) == 'string' and line:find '\n' then
+      for split_line in line:gmatch '[^\n]+' do
+        table.insert(processed_lines, split_line)
+      end
+    else
+      table.insert(processed_lines, line)
+    end
+  end
+  return processed_lines
+end
+
+local append_to_readonly_buf = function(buf, lines)
+  vim.schedule(function()
+    local ok, _ = pcall(function()
+      vim.api.nvim_set_option_value('readonly', false, { buf = buf })
+      vim.api.nvim_set_option_value('modifiable', true, { buf = buf })
+
+      -- Split any strings with newlines into separate lines
+      lines = collect_lines(lines)
+
+      vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+      vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
+      vim.api.nvim_set_option_value('readonly', true, { buf = buf })
+    end)
+    if not ok then
+      vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
+      vim.api.nvim_set_option_value('readonly', true, { buf = buf })
+    end
+  end)
+end
+
+vim.api.nvim_create_user_command('RSpec', function(opts)
+  if vim.g.rspec_running then
+    print 'RSpec already running'
+    return
+  end
+
+  local run_rspec = function(files)
+    local files_str = table.concat(files, ' ')
+    local output_file = string.format('tmp/rspec_failures_%s.txt', os.date '%Y%m%d_%H%M%S')
+    local output_buf = nil
+
+    for _, b in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(b):match 'RSpec$' then
+        output_buf = b
+        vim.api.nvim_set_option_value('modifiable', true, { buf = output_buf })
+        vim.api.nvim_set_option_value('readonly', false, { buf = output_buf })
+        break
+      end
+    end
+
+    if not output_buf then
+      output_buf = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_name(output_buf, 'RSpec')
+      vim.api.nvim_set_option_value('buftype', 'nofile', { buf = output_buf })
+      vim.api.nvim_set_option_value('bufhidden', 'hide', { buf = output_buf })
+      vim.api.nvim_set_option_value('swapfile', false, { buf = output_buf })
+    end
+    local output_msg = { 'RSpec failures will be at: ' .. output_file }
+
+    if vim.api.nvim_buf_line_count(output_buf) == 1 then
+      vim.api.nvim_buf_set_lines(output_buf, 0, 0, false, output_msg)
+    else
+      append_to_readonly_buf(output_buf, { '', '######## New Session ########' })
+      append_to_readonly_buf(output_buf, output_msg)
+    end
+    vim.api.nvim_set_option_value('modifiable', false, { buf = output_buf })
+    vim.api.nvim_set_option_value('readonly', true, { buf = output_buf })
+
+    local cmd = {
+      'env',
+      'RUBYOPT=-W0 --enable-frozen-string-literal',
+      'bin/bundle',
+      'exec',
+      'rspec',
+      '--format',
+      'documentation',
+      '--format',
+      'failures',
+      '--out',
+      output_file,
+    }
+
+    if files_str and files_str ~= '' then
+      table.insert(cmd, files_str)
+    end
+
+    print('RSpec is running with files: ' .. files_str)
+    vim.g.rspec_running = true
+    vim.system(cmd, {
+      text = true,
+      stdout = function(_, data)
+        if data then
+          append_to_readonly_buf(output_buf, { data })
+        end
+      end,
+      stderr = function(_, data)
+        if data then
+          append_to_readonly_buf(output_buf, { data })
+        end
+      end,
+    }, function(_)
+      vim.g.rspec_running = false
+      vim.schedule(function()
+        print 'RSpec is done!'
+        local failures = vim.fn.readfile(output_file)
+        if #failures > 0 then
+          vim.fn.setqflist({}, 'r', {
+            title = 'RSpec',
+            lines = failures,
+          })
+          vim.cmd 'copen'
+        end
+      end)
+    end)
+  end
+  local files = opts.fargs[1] == 'All' and {} or get_files_or_default(opts.fargs[1])
+  run_rspec(files)
+end, {
+  nargs = '?',
+  desc = 'Runs RSpec',
 })
 
 -- TIP: Disable arrow keys in normal mode
@@ -386,6 +623,15 @@ require('lazy').setup({
   -- Use `opts = {}` to automatically pass options to a plugin's `setup()` function, forcing the plugin to be loaded.
   --
 
+  {
+    'folke/persistence.nvim',
+    event = 'BufReadPre',
+    opts = {
+      dir = vim.fn.stdpath 'state' .. '/sessions/',
+      need = 1, -- min number of file buffers to save (0 = always save)
+      branch = true, -- separate session per git branch
+    },
+  },
   { 'ionide/Ionide-vim', ft = 'fsharp', dependencies = { 'neovim/nvim-lspconfig' } },
   { 'qvalentin/helm-ls.nvim', ft = 'helm' },
   { 'numToStr/Comment.nvim', opts = {} },
@@ -414,6 +660,11 @@ require('lazy').setup({
         delete = { text = '_' },
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
+      },
+      current_line_blame = true,
+      word_diff = true,
+      watch_gitdir = {
+        follow_files = true,
       },
     },
   },
@@ -707,17 +958,12 @@ require('lazy').setup({
           --  the definition of its *type*, not where it was *defined*.
           map('grt', require('telescope.builtin').lsp_type_definitions, '[G]oto [T]ype Definition')
 
-          -- This function resolves a difference between neovim nightly (version 0.11) and stable (version 0.10)
           ---@param client vim.lsp.Client
           ---@param method vim.lsp.protocol.Method
           ---@param bufnr? integer some lsp support methods only in specific files
           ---@return boolean
           local function client_supports_method(client, method, bufnr)
-            if vim.fn.has 'nvim-0.11' == 1 then
-              return client:supports_method(method, bufnr)
-            else
-              return client.supports_method(method, { bufnr = bufnr })
-            end
+            return client:supports_method(method, bufnr)
           end
 
           -- vim.keymap.set('n', '<M-f>', function()
@@ -1145,17 +1391,53 @@ require('lazy').setup({
         return '%2l:%-2v'
       end
 
+      -- local original_active = statusline.active
+      -- ---@diagnostic disable-next-line: duplicate-set-field
+      -- statusline.active = function()
+      --   local win_num = vim.api.nvim_win_get_number(0)
+      --   return string.format('%%#MiniStatuslineDevinfo#[%d]', win_num) .. original_active()
+      -- end
+
+      local original_inactive = statusline.inactive
+      ---@diagnostic disable-next-line: duplicate-set-field
+      statusline.inactive = function()
+        local win_num = vim.api.nvim_win_get_number(0)
+        return string.format('%% [%d]', win_num) .. original_inactive()
+      end
+
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+  -- { 'nvim-treesitter/nvim-treesitter-textobjects' },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
+    branch = 'main',
+    lazy = false,
+    dependencies = {
+
+      'nvim-treesitter/nvim-treesitter-textobjects',
+    },
     build = ':TSUpdate',
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc', 'c_sharp', 'zig' },
+      ensure_installed = {
+        'bash',
+        'c',
+        'diff',
+        'html',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'vim',
+        'vimdoc',
+        'c_sharp',
+        'zig',
+        'fsharp',
+      },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -1171,15 +1453,86 @@ require('lazy').setup({
 
         -- require('nvim-treesitter.install').compilers = { 'zig' }
 
+        require('nvim-treesitter-textobjects').setup { move = { set_jumps = true } }
+
         local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
+        ---@diagnostic disable-next-line: inject-field
         parser_config.fsharp = {
           install_info = {
-            url = '~/AppData/Local/nvim-data/tree-sitter-fsharp',
+            url = 'https://github.com/ionide/tree-sitter-fsharp',
             branch = 'main',
-            files = { 'src/scanner.cc', 'src/parser.c' },
+            files = { 'src/scanner.c', 'src/parser.c' },
+            location = 'fsharp',
           },
-          filetype = 'fsharp',
+          requires_generate_from_grammar = false,
         }
+
+        -- keymaps
+        -- You can use the capture groups defined in `textobjects.scm`
+        vim.keymap.set({ 'n', 'x', 'o' }, ']m', function()
+          require('nvim-treesitter-textobjects.move').goto_next_start('@function.outer', 'textobjects')
+        end)
+        vim.keymap.set({ 'n', 'x', 'o' }, ']]', function()
+          require('nvim-treesitter-textobjects.move').goto_next_start('@class.outer', 'textobjects')
+        end)
+        -- You can also pass a list to group multiple queries.
+        vim.keymap.set({ 'n', 'x', 'o' }, ']o', function()
+          require('nvim-treesitter-textobjects.move').goto_next_start({ '@loop.inner', '@loop.outer' }, 'textobjects')
+        end)
+        -- You can also use captures from other query groups like `locals.scm` or `folds.scm`
+        vim.keymap.set({ 'n', 'x', 'o' }, ']s', function()
+          require('nvim-treesitter-textobjects.move').goto_next_start('@local.scope', 'locals')
+        end)
+        vim.keymap.set({ 'n', 'x', 'o' }, ']z', function()
+          require('nvim-treesitter-textobjects.move').goto_next_start('@fold', 'folds')
+        end)
+
+        vim.keymap.set({ 'n', 'x', 'o' }, ']M', function()
+          require('nvim-treesitter-textobjects.move').goto_next_end('@function.outer', 'textobjects')
+        end)
+        vim.keymap.set({ 'n', 'x', 'o' }, '][', function()
+          require('nvim-treesitter-textobjects.move').goto_next_end('@class.outer', 'textobjects')
+        end)
+
+        vim.keymap.set({ 'n', 'x', 'o' }, '[m', function()
+          require('nvim-treesitter-textobjects.move').goto_previous_start('@function.outer', 'textobjects')
+        end)
+        vim.keymap.set({ 'n', 'x', 'o' }, '[[', function()
+          require('nvim-treesitter-textobjects.move').goto_previous_start('@class.outer', 'textobjects')
+        end)
+
+        vim.keymap.set({ 'n', 'x', 'o' }, '[M', function()
+          require('nvim-treesitter-textobjects.move').goto_previous_end('@function.outer', 'textobjects')
+        end)
+        vim.keymap.set({ 'n', 'x', 'o' }, '[]', function()
+          require('nvim-treesitter-textobjects.move').goto_previous_end('@class.outer', 'textobjects')
+        end)
+
+        -- -- Go to either the start or the end, whichever is closer.
+        -- -- Use if you want more granular movements
+        -- vim.keymap.set({ 'n', 'x', 'o' }, ']d', function()
+        --   require('nvim-treesitter-textobjects.move').goto_next('@conditional.outer', 'textobjects')
+        -- end)
+        -- vim.keymap.set({ 'n', 'x', 'o' }, '[d', function()
+        --   require('nvim-treesitter-textobjects.move').goto_previous('@conditional.outer', 'textobjects')
+        -- end)
+
+        -- Repeat movement with ; and ,
+        -- ensure ; goes forward and , goes backward regardless of the last direction
+        -- local ts_repeat_move = require 'nvim-treesitter-textobjects.repeatable_move'
+        --
+        -- vim.keymap.set({ 'n', 'x', 'o' }, ';', ts_repeat_move.repeat_last_move_next)
+        -- vim.keymap.set({ 'n', 'x', 'o' }, ',', ts_repeat_move.repeat_last_move_previous)
+
+        -- vim way: ; goes to the direction you were moving.
+        -- vim.keymap.set({ "n", "x", "o" }, ";", ts_repeat_move.repeat_last_move)
+        -- vim.keymap.set({ "n", "x", "o" }, ",", ts_repeat_move.repeat_last_move_opposite)
+
+        -- Optionally, make builtin f, F, t, T also repeatable with ; and ,
+        -- vim.keymap.set({ 'n', 'x', 'o' }, 'f', ts_repeat_move.builtin_f_expr, { expr = true })
+        -- vim.keymap.set({ 'n', 'x', 'o' }, 'F', ts_repeat_move.builtin_F_expr, { expr = true })
+        -- vim.keymap.set({ 'n', 'x', 'o' }, 't', ts_repeat_move.builtin_t_expr, { expr = true })
+        -- vim.keymap.set({ 'n', 'x', 'o' }, 'T', ts_repeat_move.builtin_T_expr, { expr = true })
         -- There are additional nvim-treesitter modules that you can use to interact
         -- with nvim-treesitter. You should go explore a few and see what interests you:
         --
@@ -1224,7 +1577,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
-  -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
