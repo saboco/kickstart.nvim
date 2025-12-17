@@ -53,6 +53,7 @@ return {
         map('n', '<leader>hb', function()
           gitsigns.blame_line { full = true }
         end, { desc = 'git [b]lame line' })
+        map('n', '<leader>hB', gitsigns.blame, { desc = 'git [b]lame' })
         map('n', '<leader>hd', gitsigns.diffthis, { desc = 'git [d]iff against index' })
         map('n', '<leader>hD', function()
           ---@diagnostic disable-next-line: param-type-mismatch

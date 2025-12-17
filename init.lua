@@ -83,6 +83,7 @@ I hope you enjoy your Neovim journey,
 P.S. You can delete this when you're done too. It's your config now! :)
 --]]
 
+vim.fn.setenv('NVIM_POSH_THEME', 'true')
 -- Set <space> as the leader key
 -- See `:help mapleader`
 --  NOTE: Must happen before plugins are loaded (otherwise wrong leader will be used)
@@ -201,6 +202,19 @@ vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 vim.keymap.set('n', '-', '<CMD>Oil<CR>', { desc = 'Open parent directory' })
 vim.keymap.set('n', '<leader>W', [[:%s/\s\+$//<cr>:let @/=''<CR>]], { desc = 'Trim whitespaces at the end of lines' })
 
+-- Session keymaps
+vim.keymap.set('n', '<leader>So', function()
+  require('persistence').load()
+end, { desc = '[S]ession, [o]pen' })
+
+vim.keymap.set('n', '<leader>Sl', function()
+  require('persistence').load()
+end, { desc = '[S]ession, open [l]ast (globally)' })
+
+vim.keymap.set('n', '<leader>Ss', function()
+  require('persistence').select()
+end, { desc = '[S]ession [s]election' })
+
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 
@@ -271,7 +285,7 @@ vim.keymap.set('n', '_', '0')
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 -- vim.keymap.set('n', '<leader>T', '<cmd>split | terminal<CR>i', { desc = 'Open a terminal in a horizontal split' })
 vim.keymap.set('n', '<leader>T', '<cmd>Term h 10<CR>', { desc = 'Open a terminal in a horizontal split' })
-vim.keymap.set('n', '<leader>vt', '<cmd>Term v 80<CR>', { desc = 'Open a terminal in a vertical split' })
+vim.keymap.set('n', '<leader>vt', '<cmd>Term v 70<CR>', { desc = 'Open a terminal in a vertical split' })
 -- Easy window navigation from terminal
 vim.keymap.set('t', '<C-h>', '<C-\\><C-n><C-w>h')
 vim.keymap.set('t', '<C-j>', '<C-\\><C-n><C-w>j')
@@ -297,7 +311,7 @@ vim.api.nvim_create_user_command('Term', function(opts)
     end
   end
 
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_win_set_buf(0, buf)
 
   vim.fn.jobstart(vim.o.shell, {
@@ -408,12 +422,26 @@ local append_to_readonly_buf = function(buf, lines)
       lines = collect_lines(lines)
 
       vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
+
       vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
       vim.api.nvim_set_option_value('readonly', true, { buf = buf })
     end)
     if not ok then
       vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
       vim.api.nvim_set_option_value('readonly', true, { buf = buf })
+    end
+  end)
+end
+
+local scroll_window = function(bufnr)
+  vim.schedule(function()
+    local current_win = vim.api.nvim_get_current_win()
+
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_buf(win) == bufnr and win ~= current_win then
+        local last_line = vim.api.nvim_buf_line_count(bufnr)
+        vim.api.nvim_win_set_cursor(win, { last_line, 0 })
+      end
     end
   end)
 end
@@ -456,9 +484,10 @@ vim.api.nvim_create_user_command('RSpec', function(opts)
     vim.api.nvim_set_option_value('modifiable', false, { buf = output_buf })
     vim.api.nvim_set_option_value('readonly', true, { buf = output_buf })
 
+    scroll_window(output_buf)
+
     local cmd = {
       'env',
-      'RUBYOPT=-W0 --enable-frozen-string-literal',
       'bin/bundle',
       'exec',
       'rspec',
@@ -481,11 +510,13 @@ vim.api.nvim_create_user_command('RSpec', function(opts)
       stdout = function(_, data)
         if data then
           append_to_readonly_buf(output_buf, { data })
+          scroll_window(output_buf)
         end
       end,
       stderr = function(_, data)
         if data then
           append_to_readonly_buf(output_buf, { data })
+          scroll_window(output_buf)
         end
       end,
     }, function(_)
@@ -503,7 +534,7 @@ vim.api.nvim_create_user_command('RSpec', function(opts)
       end)
     end)
   end
-  local files = opts.fargs[1] == 'All' and {} or get_files_or_default(opts.fargs[1])
+  local files = opts.fargs[1] ~= nil and string.lower(opts.fargs[1]) == 'all' and {} or get_files_or_default(opts.fargs[1])
   run_rspec(files)
 end, {
   nargs = '?',
@@ -633,7 +664,7 @@ require('lazy').setup({
     },
   },
   { 'ionide/Ionide-vim', ft = 'fsharp', dependencies = { 'neovim/nvim-lspconfig' } },
-  { 'qvalentin/helm-ls.nvim', ft = 'helm' },
+  -- { 'qvalentin/helm-ls.nvim', ft = 'helm' },
   { 'numToStr/Comment.nvim', opts = {} },
 
   -- Alternatively, use `config = function() ... end` for full control over the configuration.
@@ -661,13 +692,14 @@ require('lazy').setup({
         topdelete = { text = '‾' },
         changedelete = { text = '~' },
       },
-      current_line_blame = true,
-      word_diff = true,
+      -- current_line_blame = false,
+      -- word_diff = false,
       watch_gitdir = {
         follow_files = true,
       },
     },
   },
+  { 'sindrets/diffview.nvim' },
 
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
@@ -732,6 +764,7 @@ require('lazy').setup({
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
+        { '<leader>S', group = '[S]ession' },
       },
     },
   },
@@ -1040,6 +1073,11 @@ require('lazy').setup({
         },
       }
 
+      vim.keymap.set('n', '<leader>td', function()
+        local is_enabled = vim.diagnostic.is_enabled()
+        vim.diagnostic.enable(not is_enabled)
+      end, { desc = '[T]oggle dianostic messages' })
+
       -- LSP servers and clients are able to communicate to each other what features they support.
       --  By default, Neovim doesn't support everything that is in the LSP specification.
       --  When you add blink.cmp, luasnip, etc. Neovim now has *more* capabilities.
@@ -1108,15 +1146,15 @@ require('lazy').setup({
         --     enableProfileLoading = false,
         --   },
         -- },
-        helm_ls = {
-          settings = {
-            ['helm-ls'] = {
-              yamlls = {
-                path = 'yaml-language-server',
-              },
-            },
-          },
-        },
+        -- helm_ls = {
+        --   settings = {
+        --     ['helm-ls'] = {
+        --       yamlls = {
+        --         path = 'yaml-language-server',
+        --       },
+        --     },
+        --   },
+        -- },
         ruby_lsp = {
           init_options = {
             addonSettings = {
@@ -1577,7 +1615,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
-  require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'custom.plugins.gitsigns', -- adds gitsigns recommend keymaps
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
