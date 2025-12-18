@@ -1,0 +1,119 @@
+local M = { running = false, has_error = false }
+
+-- This is a basic plugin for running RSpec tests
+-- :RSpec All will run all tests
+-- :RSpec will run current file.
+return {
+  dir = vim.fn.stdpath 'config' .. '/lua/custom/plugins',
+  config = function()
+    vim.api.nvim_create_autocmd('FileType', {
+      pattern = 'ruby',
+      callback = function(ev)
+        local filename = vim.fn.expand '%:t'
+        -- Only enable for files that match common RSpec test patterns
+        if filename:match '_spec%.rb$' or filename:match '_test%.rb$' then
+          vim.api.nvim_buf_create_user_command(ev.buf, 'RSpec', function(opts)
+            if M.running then
+              print 'RSpec already running'
+              return
+            end
+
+            local utils = require 'custom.utils'
+            local run_rspec = function(files)
+              local files_str = table.concat(files, ' ')
+              local output_file = string.format('tmp/rspec_failures_%s.txt', os.date '%Y%m%d_%H%M%S')
+              local output_buf = nil
+
+              for _, b in ipairs(vim.api.nvim_list_bufs()) do
+                if vim.api.nvim_buf_get_name(b):match 'RSpec$' then
+                  output_buf = b
+                  vim.api.nvim_set_option_value('modifiable', true, { buf = output_buf })
+                  vim.api.nvim_set_option_value('readonly', false, { buf = output_buf })
+                  break
+                end
+              end
+
+              if not output_buf then
+                output_buf = vim.api.nvim_create_buf(true, false)
+                vim.api.nvim_buf_set_name(output_buf, 'RSpec')
+                vim.api.nvim_set_option_value('buftype', 'nofile', { buf = output_buf })
+                vim.api.nvim_set_option_value('bufhidden', 'hide', { buf = output_buf })
+                vim.api.nvim_set_option_value('swapfile', false, { buf = output_buf })
+              end
+              local output_msg = { 'RSpec failures will be at: ' .. output_file }
+
+              if vim.api.nvim_buf_line_count(output_buf) == 1 then
+                vim.api.nvim_buf_set_lines(output_buf, 0, 0, false, output_msg)
+              else
+                utils.append_to_readonly_buf(output_buf, { '', '######## New Session ########' })
+                utils.append_to_readonly_buf(output_buf, output_msg)
+              end
+              vim.api.nvim_set_option_value('modifiable', false, { buf = output_buf })
+              vim.api.nvim_set_option_value('readonly', true, { buf = output_buf })
+
+              utils.scroll_window(output_buf)
+
+              local cmd = {
+                'env',
+                'bin/bundle',
+                'exec',
+                'rspec',
+                '--format',
+                'documentation',
+                '--format',
+                'failures',
+                '--out',
+                output_file,
+              }
+
+              if files_str and files_str ~= '' then
+                table.insert(cmd, files_str)
+              end
+
+              print('RSpec is running with files: ' .. files_str)
+              M.running = true
+              vim.system(cmd, {
+                text = true,
+                stdout = function(_, data)
+                  if data then
+                    utils.append_to_readonly_buf(output_buf, { data })
+                    utils.scroll_window(output_buf)
+                  end
+                end,
+                stderr = function(_, data)
+                  if data then
+                    utils.append_to_readonly_buf(output_buf, { data })
+                    utils.scroll_window(output_buf)
+                  end
+                  M.has_error = true
+                end,
+              }, function(_)
+                M.running = false
+                if not M.has_error then
+                  vim.schedule(function()
+                    print 'RSpec is done!'
+                    local failures = vim.fn.readfile(output_file)
+                    if #failures > 0 then
+                      vim.fn.setqflist({}, 'r', {
+                        title = 'RSpec',
+                        lines = failures,
+                      })
+                      vim.cmd 'copen'
+                    end
+                  end)
+                else
+                  M.has_error = false
+                end
+              end)
+            end
+            local files = opts.fargs[1] ~= nil and string.lower(opts.fargs[1]) == 'all' and {} or utils.get_files_or_default(opts.fargs[1])
+            run_rspec(files)
+          end, {
+            nargs = '?',
+            desc = 'Runs RSpec',
+          })
+        end
+      end,
+    })
+  end,
+}

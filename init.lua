@@ -382,165 +382,6 @@ end, {
   desc = 'Open a scratch buffer',
 })
 
-local get_files_or_default = function(file_pattern)
-  local get_current_file = function()
-    local file = vim.fn.expand '%:p'
-    return { file }
-  end
-  if file_pattern then
-    local files = vim.fn.glob(file_pattern, false, true)
-    if #files == 0 then
-      return get_current_file()
-    end
-    return files
-  else
-    return get_current_file()
-  end
-end
-
-local collect_lines = function(lines)
-  local processed_lines = {}
-  for _, line in ipairs(lines) do
-    if type(line) == 'string' and line:find '\n' then
-      for split_line in line:gmatch '[^\n]+' do
-        table.insert(processed_lines, split_line)
-      end
-    else
-      table.insert(processed_lines, line)
-    end
-  end
-  return processed_lines
-end
-
-local append_to_readonly_buf = function(buf, lines)
-  vim.schedule(function()
-    local ok, _ = pcall(function()
-      vim.api.nvim_set_option_value('readonly', false, { buf = buf })
-      vim.api.nvim_set_option_value('modifiable', true, { buf = buf })
-
-      -- Split any strings with newlines into separate lines
-      lines = collect_lines(lines)
-
-      vim.api.nvim_buf_set_lines(buf, -1, -1, false, lines)
-
-      vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
-      vim.api.nvim_set_option_value('readonly', true, { buf = buf })
-    end)
-    if not ok then
-      vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
-      vim.api.nvim_set_option_value('readonly', true, { buf = buf })
-    end
-  end)
-end
-
-local scroll_window = function(bufnr)
-  vim.schedule(function()
-    local current_win = vim.api.nvim_get_current_win()
-
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      if vim.api.nvim_win_get_buf(win) == bufnr and win ~= current_win then
-        local last_line = vim.api.nvim_buf_line_count(bufnr)
-        vim.api.nvim_win_set_cursor(win, { last_line, 0 })
-      end
-    end
-  end)
-end
-
-vim.api.nvim_create_user_command('RSpec', function(opts)
-  if vim.g.rspec_running then
-    print 'RSpec already running'
-    return
-  end
-
-  local run_rspec = function(files)
-    local files_str = table.concat(files, ' ')
-    local output_file = string.format('tmp/rspec_failures_%s.txt', os.date '%Y%m%d_%H%M%S')
-    local output_buf = nil
-
-    for _, b in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_get_name(b):match 'RSpec$' then
-        output_buf = b
-        vim.api.nvim_set_option_value('modifiable', true, { buf = output_buf })
-        vim.api.nvim_set_option_value('readonly', false, { buf = output_buf })
-        break
-      end
-    end
-
-    if not output_buf then
-      output_buf = vim.api.nvim_create_buf(true, false)
-      vim.api.nvim_buf_set_name(output_buf, 'RSpec')
-      vim.api.nvim_set_option_value('buftype', 'nofile', { buf = output_buf })
-      vim.api.nvim_set_option_value('bufhidden', 'hide', { buf = output_buf })
-      vim.api.nvim_set_option_value('swapfile', false, { buf = output_buf })
-    end
-    local output_msg = { 'RSpec failures will be at: ' .. output_file }
-
-    if vim.api.nvim_buf_line_count(output_buf) == 1 then
-      vim.api.nvim_buf_set_lines(output_buf, 0, 0, false, output_msg)
-    else
-      append_to_readonly_buf(output_buf, { '', '######## New Session ########' })
-      append_to_readonly_buf(output_buf, output_msg)
-    end
-    vim.api.nvim_set_option_value('modifiable', false, { buf = output_buf })
-    vim.api.nvim_set_option_value('readonly', true, { buf = output_buf })
-
-    scroll_window(output_buf)
-
-    local cmd = {
-      'env',
-      'bin/bundle',
-      'exec',
-      'rspec',
-      '--format',
-      'documentation',
-      '--format',
-      'failures',
-      '--out',
-      output_file,
-    }
-
-    if files_str and files_str ~= '' then
-      table.insert(cmd, files_str)
-    end
-
-    print('RSpec is running with files: ' .. files_str)
-    vim.g.rspec_running = true
-    vim.system(cmd, {
-      text = true,
-      stdout = function(_, data)
-        if data then
-          append_to_readonly_buf(output_buf, { data })
-          scroll_window(output_buf)
-        end
-      end,
-      stderr = function(_, data)
-        if data then
-          append_to_readonly_buf(output_buf, { data })
-          scroll_window(output_buf)
-        end
-      end,
-    }, function(_)
-      vim.g.rspec_running = false
-      vim.schedule(function()
-        print 'RSpec is done!'
-        local failures = vim.fn.readfile(output_file)
-        if #failures > 0 then
-          vim.fn.setqflist({}, 'r', {
-            title = 'RSpec',
-            lines = failures,
-          })
-          vim.cmd 'copen'
-        end
-      end)
-    end)
-  end
-  local files = opts.fargs[1] ~= nil and string.lower(opts.fargs[1]) == 'all' and {} or get_files_or_default(opts.fargs[1])
-  run_rspec(files)
-end, {
-  nargs = '?',
-  desc = 'Runs RSpec',
-})
-
 -- TIP: Disable arrow keys in normal mode
 vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
 vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
@@ -699,8 +540,29 @@ require('lazy').setup({
       },
     },
   },
-  { 'sindrets/diffview.nvim' },
-
+  {
+    'sindrets/diffview.nvim',
+    opts = {
+      view = {
+        merge_tool = {
+          layout = 'diff4_mixed',
+        },
+      },
+    },
+  },
+  {
+    'NeogitOrg/neogit',
+    lazy = true,
+    dependencies = {
+      'nvim-lua/plenary.nvim', -- required
+      'sindrets/diffview.nvim',
+      'nvim-telescope/telescope.nvim',
+    },
+    cmd = 'Neogit',
+    keys = {
+      { '<leader>gg', '<cmd>Neogit<cr>', desc = 'Show Neogit UI' },
+    },
+  },
   -- NOTE: Plugins can also be configured to run Lua code when they are loaded.
   --
   -- This is often very useful to both group configuration, as well as handle
@@ -1616,6 +1478,7 @@ require('lazy').setup({
   -- require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
   require 'custom.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'custom.plugins.rspec',
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
