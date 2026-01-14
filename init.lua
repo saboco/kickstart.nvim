@@ -176,6 +176,7 @@ end, {
 -- Other useful keymaps
 vim.keymap.set('i', '<leader>.', '<esc>')
 vim.keymap.set('i', '<space><space>', '<esc>')
+vim.keymap.set('i', 'jk', '<esc>')
 vim.keymap.set('i', '<leader>;', '<esc>') -- when in AZERTY keyboard
 vim.keymap.set('v', '<space><space>', '<esc>')
 
@@ -373,22 +374,6 @@ vim.api.nvim_create_autocmd({ 'BufNewFile', 'BufRead' }, {
   command = [[set filetype=yaml]],
 })
 
--- local format = function(async)
---   vim.lsp.buf.format {
---     async = async,
---     filter = function(client)
---       return client.name == 'ionide'
---     end,
---   }
--- end
-
--- vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
---   pattern = '*.fs,*.fsx,*.fsi',
---   callback = function()
---     format(false)
---   end,
--- })
-
 -- [[ Configure and install plugins ]]
 --
 --  To check the current status of your plugins, run
@@ -422,23 +407,7 @@ require('lazy').setup({
   },
   { 'ionide/Ionide-vim', ft = 'fsharp', dependencies = { 'neovim/nvim-lspconfig' } },
   -- { 'qvalentin/helm-ls.nvim', ft = 'helm' },
-  { 'numToStr/Comment.nvim', opts = {} },
-
-  -- Alternatively, use `config = function() ... end` for full control over the configuration.
-  -- If you prefer to call `setup` explicitly, use:
-  --    {
-  --        'lewis6991/gitsigns.nvim',
-  --        config = function()
-  --            require('gitsigns').setup({
-  --                -- Your gitsigns configuration here
-  --            })
-  --        end,
-  --    }
-  --
-  -- Here is a more advanced example where we pass configuration
-  -- options to `gitsigns.nvim`.
-  --
-  -- See `:help gitsigns` to understand what the configuration keys do
+  { 'numToStr/Comment.nvim', event = 'VeryLazy', opts = {} },
   { -- Adds git related signs to the gutter, as well as utilities for managing changes
     'lewis6991/gitsigns.nvim',
     event = 'VeryLazy',
@@ -545,6 +514,7 @@ require('lazy').setup({
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
         { '<leader>S', group = '[S]ession' },
+        { 'gr', group = '[G]oto LSP commands' },
       },
     },
   },
@@ -841,6 +811,8 @@ require('lazy').setup({
 
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
+
+    event = 'VimEnter', -- Sets the loading event to 'VimEnter'
     config = function()
       -- Better Around/Inside textobjects
       --
@@ -890,16 +862,25 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
-  -- { 'nvim-treesitter/nvim-treesitter-textobjects' },
+  -- { 'nvim-treesitter/nvim-treesitter-textobjects', opts = {} },
+  {
+    'nvim-treesitter/nvim-treesitter-textobjects',
+    branch = 'main',
+    init = function()
+      -- Disable entire built-in ftplugin mappings to avoid conflicts.
+      -- See https://github.com/neovim/neovim/tree/master/runtime/ftplugin for built-in ftplugins.
+      vim.g.no_plugin_maps = true
+    end,
+  },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     branch = 'main',
-    event = { "BufReadPost", "BufNewFile" }, 
-    dependencies = {
-      'nvim-treesitter/nvim-treesitter-textobjects',
-    },
+    event = { 'BufReadPost', 'BufNewFile' },
+    -- dependencies = {
+    --   'nvim-treesitter/nvim-treesitter-textobjects',
+    -- },
     build = ':TSUpdate',
-    main = 'nvim-treesitter.configs', -- Sets main module to use for opts
+    -- main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
       ensure_installed = {
@@ -988,14 +969,14 @@ require('lazy').setup({
           require('nvim-treesitter-textobjects.move').goto_previous_end('@class.outer', 'textobjects')
         end)
 
-        -- -- Go to either the start or the end, whichever is closer.
-        -- -- Use if you want more granular movements
-        -- vim.keymap.set({ 'n', 'x', 'o' }, ']d', function()
-        --   require('nvim-treesitter-textobjects.move').goto_next('@conditional.outer', 'textobjects')
-        -- end)
-        -- vim.keymap.set({ 'n', 'x', 'o' }, '[d', function()
-        --   require('nvim-treesitter-textobjects.move').goto_previous('@conditional.outer', 'textobjects')
-        -- end)
+        -- Go to either the start or the end, whichever is closer.
+        -- Use if you want more granular movements
+        vim.keymap.set({ 'n', 'x', 'o' }, ']d', function()
+          require('nvim-treesitter-textobjects.move').goto_next('@conditional.outer', 'textobjects')
+        end)
+        vim.keymap.set({ 'n', 'x', 'o' }, '[d', function()
+          require('nvim-treesitter-textobjects.move').goto_previous('@conditional.outer', 'textobjects')
+        end)
 
         -- Repeat movement with ; and ,
         -- ensure ; goes forward and , goes backward regardless of the last direction
@@ -1037,35 +1018,26 @@ require('lazy').setup({
       default_file_explorer = true,
     },
     -- Optional dependencies
-    dependencies = { { 'echasnovski/mini.icons', opts = {} } },
+    -- dependencies = { { 'echasnovski/mini.icons', opts = {} } },
     -- dependencies = { 'nvim-tree/nvim-web-devicons' }, -- use if you prefer nvim-web-devicons
     -- Lazy loading is not recommended because it is very tricky to make it work correctly in all situations.
     lazy = false,
   },
-
-  -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
-  -- init.lua. If you want these files, they are in the repository, so you can just download them and
-  -- place them in the correct locations.
-
-  -- NOTE: Next step on your Neovim journey: Add/Configure additional plugins for Kickstart
-  --
-  --  Here are some example plugins that I've included in the Kickstart repository.
-  --  Uncomment any of the lines below to enable them (you will need to restart nvim).
-  --
+  { 'echasnovski/mini.icons', opts = {}, lazy = false },
   require 'kickstart.plugins.debug',
   -- require 'kickstart.plugins.indent_line',
   -- require 'kickstart.plugins.lint',
   -- require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
-  require 'custom.plugins.lsp-config',
-  require 'custom.plugins.gitsigns', -- adds gitsigns recommend keymaps
-  require 'custom.plugins.rspec',
 
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
   -- { import = 'custom.plugins' },
+  require 'custom.plugins.lsp-config',
+  require 'custom.plugins.gitsigns', -- adds gitsigns recommend keymaps
+  require 'custom.plugins.rspec',
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!

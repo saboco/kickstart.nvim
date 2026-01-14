@@ -14,19 +14,25 @@ local collect_lines = function(lines)
   return processed_lines
 end
 
+M.get_current_file = function()
+  local file = vim.fn.expand '%:p'
+  return { file }
+end
+M.get_current_file_with_line_number = function()
+  local file = vim.fn.expand '%:p'
+  local line_number = vim.api.nvim_win_get_cursor(0)[1]
+  return { file .. ':' .. line_number }
+end
+
 M.get_files_or_default = function(file_pattern)
-  local get_current_file = function()
-    local file = vim.fn.expand '%:p'
-    return { file }
-  end
   if file_pattern then
     local files = vim.fn.glob(file_pattern, false, true)
     if #files == 0 then
-      return get_current_file()
+      return M.get_current_file()
     end
     return files
   else
-    return get_current_file()
+    return M.get_current_file()
   end
 end
 
