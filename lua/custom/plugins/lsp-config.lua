@@ -139,7 +139,7 @@ return {
           })
         end
 
-        if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_semanticTokens_full, event.buf) then
+        if client and client.name == 'csharp_ls' and client:supports_method(vim.lsp.protocol.Methods.textDocument_semanticTokens_full, event.buf) then
           vim.defer_fn(function()
             if vim.api.nvim_buf_is_valid(event.buf) then
               vim.lsp.semantic_tokens.force_refresh(event.buf)
