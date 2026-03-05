@@ -139,6 +139,14 @@ return {
           })
         end
 
+        if client and client:supports_method(vim.lsp.protocol.Methods.textDocument_semanticTokens_full, event.buf) then
+          vim.defer_fn(function()
+            if vim.api.nvim_buf_is_valid(event.buf) then
+              vim.lsp.semantic_tokens.force_refresh(event.buf)
+            end
+          end, 500)
+        end
+
         -- The following code creates a keymap to toggle inlay hints in your
         -- code, if the language server you are using supports them
         --
