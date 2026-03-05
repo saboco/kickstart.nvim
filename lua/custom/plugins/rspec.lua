@@ -111,7 +111,7 @@ return {
   config = function()
     vim.api.nvim_create_autocmd('BufReadPost', {
       -- Only enable for files that match common RSpec test patterns
-      pattern = { '*_spec.rb', '*_test.rb' },
+      pattern = { '*/spec/**/*.rb', '*_spec.rb', '*_test.rb' },
       callback = function()
         vim.api.nvim_buf_create_user_command(0, 'RSpec', function(opts)
           if M.running then

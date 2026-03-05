@@ -165,7 +165,7 @@ end, { desc = 'Remove current line from quickfix' })
 
 vim.api.nvim_create_user_command('Cfopen', function(opts)
   if opts.fargs[1] then
-    vim.cmd(string.format([[set errorformat=%%f\|%%l\|\ %%m | botright cfile %s ]], opts.fargs[1]))
+    vim.cmd(string.format([[set errorformat=%%f:%%l:%%m | botright cfile %s ]], opts.fargs[1]))
   end
   vim.cmd 'botright copen'
 end, {
@@ -174,10 +174,9 @@ end, {
 })
 
 -- Other useful keymaps
-vim.keymap.set('i', '<leader>.', '<esc>')
-vim.keymap.set('i', '<space><space>', '<esc>')
+vim.keymap.set('i', 'fj', '<esc>')
+vim.keymap.set('i', 'jf', '<esc>')
 vim.keymap.set('i', 'jk', '<esc>')
-vim.keymap.set('i', '<leader>;', '<esc>') -- when in AZERTY keyboard
 vim.keymap.set('v', '<space><space>', '<esc>')
 
 -- vimrc editing
@@ -597,9 +596,19 @@ require('lazy').setup({
       vim.keymap.set('n', '<leader>sh', builtin.help_tags, { desc = '[S]earch [H]elp' })
       vim.keymap.set('n', '<leader>sk', builtin.keymaps, { desc = '[S]earch [K]eymaps' })
       vim.keymap.set('n', '<leader>sf', builtin.find_files, { desc = '[S]earch [F]iles' })
+      vim.keymap.set('n', '<leader>sa', function()
+        builtin.find_files { hidden = true }
+      end, { desc = '[S]earch [A]ll files (including hidden)' })
       vim.keymap.set('n', '<leader>ss', builtin.builtin, { desc = '[S]earch [S]elect Telescope' })
       vim.keymap.set('n', '<leader>sw', builtin.grep_string, { desc = '[S]earch current [W]ord' })
       vim.keymap.set('n', '<leader>sg', builtin.live_grep, { desc = '[S]earch by [G]rep' })
+      vim.keymap.set('n', '<leader>sG', function()
+        require('telescope.builtin').live_grep {
+          additional_args = function()
+            return { '--hidden' }
+          end,
+        }
+      end)
       vim.keymap.set('n', '<leader>sd', builtin.diagnostics, { desc = '[S]earch [D]iagnostics' })
       vim.keymap.set('n', '<leader>sr', builtin.resume, { desc = '[S]earch [R]esume' })
       vim.keymap.set('n', '<leader>s.', builtin.oldfiles, { desc = '[S]earch Recent Files ("." for repeat)' })
@@ -676,11 +685,18 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        cs = { 'csharpier' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
         -- You can use 'stop_after_first' to run the first available formatter from the list
         -- javascript = { "prettierd", "prettier", stop_after_first = true },
+      },
+      formatters = {
+        csharpier = {
+          command = 'dotnet-csharpier',
+          args = { '--write-stdout' },
+        },
       },
     },
   },
@@ -791,6 +807,7 @@ require('lazy').setup({
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
     'folke/tokyonight.nvim',
     priority = 1000, -- Make sure to load this before all the other start plugins.
+    lazy = false,
     config = function()
       ---@diagnostic disable-next-line: missing-fields
       require('tokyonight').setup {
@@ -862,7 +879,6 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
-  -- { 'nvim-treesitter/nvim-treesitter-textobjects', opts = {} },
   {
     'nvim-treesitter/nvim-treesitter-textobjects',
     branch = 'main',
@@ -875,13 +891,86 @@ require('lazy').setup({
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     branch = 'main',
-    event = { 'BufReadPost', 'BufNewFile' },
-    -- dependencies = {
-    --   'nvim-treesitter/nvim-treesitter-textobjects',
-    -- },
+    lazy = false,
     build = ':TSUpdate',
-    -- main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
+
+    config = function()
+      require('nvim-treesitter-textobjects').setup { move = { set_jumps = true } }
+      -- keymaps
+      -- You can use the capture groups defined in `textobjects.scm`
+      vim.keymap.set({ 'n', 'x', 'o' }, '[m', function()
+        require('nvim-treesitter-textobjects.move').goto_previous_start('@function.inner', 'textobjects')
+      end)
+      vim.keymap.set({ 'n', 'x', 'o' }, ']m', function()
+        require('nvim-treesitter-textobjects.move').goto_next_start('@function.inner', 'textobjects')
+      end)
+      vim.keymap.set({ 'n', 'x', 'o' }, '[M', function()
+        require('nvim-treesitter-textobjects.move').goto_previous_end('@function.outer', 'textobjects')
+      end)
+      vim.keymap.set({ 'n', 'x', 'o' }, ']M', function()
+        require('nvim-treesitter-textobjects.move').goto_next_end('@function.outer', 'textobjects')
+      end)
+
+      vim.keymap.set({ 'n', 'x', 'o' }, ']]', function()
+        require('nvim-treesitter-textobjects.move').goto_next_start('@class.outer', 'textobjects')
+      end)
+      -- You can also pass a list to group multiple queries.
+      vim.keymap.set({ 'n', 'x', 'o' }, ']o', function()
+        require('nvim-treesitter-textobjects.move').goto_next_start({ '@loop.inner', '@loop.outer' }, 'textobjects')
+      end)
+      -- You can also use captures from other query groups like `locals.scm` or `folds.scm`
+      vim.keymap.set({ 'n', 'x', 'o' }, ']s', function()
+        require('nvim-treesitter-textobjects.move').goto_next_start('@local.scope', 'locals')
+      end)
+      vim.keymap.set({ 'n', 'x', 'o' }, ']z', function()
+        require('nvim-treesitter-textobjects.move').goto_next_start('@fold', 'folds')
+      end)
+
+      vim.keymap.set({ 'n', 'x', 'o' }, '][', function()
+        require('nvim-treesitter-textobjects.move').goto_next_end('@class.outer', 'textobjects')
+      end)
+
+      vim.keymap.set({ 'n', 'x', 'o' }, '[[', function()
+        require('nvim-treesitter-textobjects.move').goto_previous_start('@class.outer', 'textobjects')
+      end)
+
+      vim.keymap.set({ 'n', 'x', 'o' }, '[]', function()
+        require('nvim-treesitter-textobjects.move').goto_previous_end('@class.outer', 'textobjects')
+      end)
+
+      -- Go to either the start or the end, whichever is closer.
+      -- Use if you want more granular movements
+      vim.keymap.set({ 'n', 'x', 'o' }, ']d', function()
+        require('nvim-treesitter-textobjects.move').goto_next('@conditional.outer', 'textobjects')
+      end)
+      vim.keymap.set({ 'n', 'x', 'o' }, '[d', function()
+        require('nvim-treesitter-textobjects.move').goto_previous('@conditional.outer', 'textobjects')
+      end)
+
+      -- Repeat movement with ; and ,
+      -- ensure ; goes forward and , goes backward regardless of the last direction
+      -- local ts_repeat_move = require 'nvim-treesitter-textobjects.repeatable_move'
+      --
+      -- vim.keymap.set({ 'n', 'x', 'o' }, ';', ts_repeat_move.repeat_last_move_next)
+      -- vim.keymap.set({ 'n', 'x', 'o' }, ',', ts_repeat_move.repeat_last_move_previous)
+
+      -- vim way: ; goes to the direction you were moving.
+      -- vim.keymap.set({ "n", "x", "o" }, ";", ts_repeat_move.repeat_last_move)
+      -- vim.keymap.set({ "n", "x", "o" }, ",", ts_repeat_move.repeat_last_move_opposite)
+
+      -- Optionally, make builtin f, F, t, T also repeatable with ; and ,
+      -- vim.keymap.set({ 'n', 'x', 'o' }, 'f', ts_repeat_move.builtin_f_expr, { expr = true })
+      -- vim.keymap.set({ 'n', 'x', 'o' }, 'F', ts_repeat_move.builtin_F_expr, { expr = true })
+      -- vim.keymap.set({ 'n', 'x', 'o' }, 't', ts_repeat_move.builtin_t_expr, { expr = true })
+      -- vim.keymap.set({ 'n', 'x', 'o' }, 'T', ts_repeat_move.builtin_T_expr, { expr = true })
+      -- There are additional nvim-treesitter modules that you can use to interact
+      -- with nvim-treesitter. You should go explore a few and see what interests you:
+      --
+      --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
+      --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
+      --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
+    end,
     opts = {
       ensure_installed = {
         'bash',
@@ -909,98 +998,6 @@ require('lazy').setup({
         additional_vim_regex_highlighting = { 'ruby' },
       },
       indent = { enable = true, disable = { 'ruby' } },
-      config = function()
-        -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
-
-        -- require('nvim-treesitter.install').compilers = { 'zig' }
-
-        require('nvim-treesitter-textobjects').setup { move = { set_jumps = true } }
-
-        local parser_config = require('nvim-treesitter.parsers').get_parser_configs()
-        ---@diagnostic disable-next-line: inject-field
-        parser_config.fsharp = {
-          install_info = {
-            url = 'https://github.com/ionide/tree-sitter-fsharp',
-            branch = 'main',
-            files = { 'src/scanner.c', 'src/parser.c' },
-            location = 'fsharp',
-          },
-          requires_generate_from_grammar = false,
-        }
-
-        -- keymaps
-        -- You can use the capture groups defined in `textobjects.scm`
-        vim.keymap.set({ 'n', 'x', 'o' }, ']m', function()
-          require('nvim-treesitter-textobjects.move').goto_next_start('@function.outer', 'textobjects')
-        end)
-        vim.keymap.set({ 'n', 'x', 'o' }, ']]', function()
-          require('nvim-treesitter-textobjects.move').goto_next_start('@class.outer', 'textobjects')
-        end)
-        -- You can also pass a list to group multiple queries.
-        vim.keymap.set({ 'n', 'x', 'o' }, ']o', function()
-          require('nvim-treesitter-textobjects.move').goto_next_start({ '@loop.inner', '@loop.outer' }, 'textobjects')
-        end)
-        -- You can also use captures from other query groups like `locals.scm` or `folds.scm`
-        vim.keymap.set({ 'n', 'x', 'o' }, ']s', function()
-          require('nvim-treesitter-textobjects.move').goto_next_start('@local.scope', 'locals')
-        end)
-        vim.keymap.set({ 'n', 'x', 'o' }, ']z', function()
-          require('nvim-treesitter-textobjects.move').goto_next_start('@fold', 'folds')
-        end)
-
-        vim.keymap.set({ 'n', 'x', 'o' }, ']M', function()
-          require('nvim-treesitter-textobjects.move').goto_next_end('@function.outer', 'textobjects')
-        end)
-        vim.keymap.set({ 'n', 'x', 'o' }, '][', function()
-          require('nvim-treesitter-textobjects.move').goto_next_end('@class.outer', 'textobjects')
-        end)
-
-        vim.keymap.set({ 'n', 'x', 'o' }, '[m', function()
-          require('nvim-treesitter-textobjects.move').goto_previous_start('@function.outer', 'textobjects')
-        end)
-        vim.keymap.set({ 'n', 'x', 'o' }, '[[', function()
-          require('nvim-treesitter-textobjects.move').goto_previous_start('@class.outer', 'textobjects')
-        end)
-
-        vim.keymap.set({ 'n', 'x', 'o' }, '[M', function()
-          require('nvim-treesitter-textobjects.move').goto_previous_end('@function.outer', 'textobjects')
-        end)
-        vim.keymap.set({ 'n', 'x', 'o' }, '[]', function()
-          require('nvim-treesitter-textobjects.move').goto_previous_end('@class.outer', 'textobjects')
-        end)
-
-        -- Go to either the start or the end, whichever is closer.
-        -- Use if you want more granular movements
-        vim.keymap.set({ 'n', 'x', 'o' }, ']d', function()
-          require('nvim-treesitter-textobjects.move').goto_next('@conditional.outer', 'textobjects')
-        end)
-        vim.keymap.set({ 'n', 'x', 'o' }, '[d', function()
-          require('nvim-treesitter-textobjects.move').goto_previous('@conditional.outer', 'textobjects')
-        end)
-
-        -- Repeat movement with ; and ,
-        -- ensure ; goes forward and , goes backward regardless of the last direction
-        -- local ts_repeat_move = require 'nvim-treesitter-textobjects.repeatable_move'
-        --
-        -- vim.keymap.set({ 'n', 'x', 'o' }, ';', ts_repeat_move.repeat_last_move_next)
-        -- vim.keymap.set({ 'n', 'x', 'o' }, ',', ts_repeat_move.repeat_last_move_previous)
-
-        -- vim way: ; goes to the direction you were moving.
-        -- vim.keymap.set({ "n", "x", "o" }, ";", ts_repeat_move.repeat_last_move)
-        -- vim.keymap.set({ "n", "x", "o" }, ",", ts_repeat_move.repeat_last_move_opposite)
-
-        -- Optionally, make builtin f, F, t, T also repeatable with ; and ,
-        -- vim.keymap.set({ 'n', 'x', 'o' }, 'f', ts_repeat_move.builtin_f_expr, { expr = true })
-        -- vim.keymap.set({ 'n', 'x', 'o' }, 'F', ts_repeat_move.builtin_F_expr, { expr = true })
-        -- vim.keymap.set({ 'n', 'x', 'o' }, 't', ts_repeat_move.builtin_t_expr, { expr = true })
-        -- vim.keymap.set({ 'n', 'x', 'o' }, 'T', ts_repeat_move.builtin_T_expr, { expr = true })
-        -- There are additional nvim-treesitter modules that you can use to interact
-        -- with nvim-treesitter. You should go explore a few and see what interests you:
-        --
-        --    - Incremental selection: Included, see `:help nvim-treesitter-incremental-selection-mod`
-        --    - Show your current context: https://github.com/nvim-treesitter/nvim-treesitter-context
-        --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
-      end,
     },
     -- There are additional nvim-treesitter modules that you can use to interact
     -- with nvim-treesitter. You should go explore a few and see what interests you:
